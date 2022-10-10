@@ -1,0 +1,134 @@
+clc;clear;
+close all;
+
+
+addpath(genpath('metrics'));
+addpath(genpath('data'));
+
+w = 15;
+
+
+
+%% Reading input image directly from any folder
+
+im = imread('out_of_focus0686.jpg');
+ figure, imshow(im,[]);
+LBPmap=lbpcode(im, w);
+figure, imshow(LBPmap,[]);
+
+B = imbinarize(LBPmap, 'adaptive');
+figure, imshow(B,[]);
+
+%%
+
+function LBPmap  = lbpcode(im, w)
+threshold = 12.5;
+I =rgb2gray(im2double(im));
+ % I=max(im,[],3);
+
+ I=min(im,[],3);
+[height,width]=size(I);
+
+
+interpOff = sqrt(2)/2;
+I = double(I);
+P = padarray(I, [1 1], 'replicate');
+%% 
+% Entry (i,j) of this matrix contains the pixel to the
+% right of (i,j) in I.
+right = P(2:end-1, 3:end);
+
+% Meanings of these are similar to that of 'right', above.
+left = P(2:end-1, 1:end-2);
+above = P(1:end-2, 2:end-1);
+below = P(3:end, 2:end-1);
+aboveRight = P(1:end-2, 3:end);
+aboveLeft = P(1:end-2, 1:end-2);
+belowRight = P(3:end, 3:end);
+belowLeft = P(3:end, 1:end-2);
+%% 
+% Entry (i,j) of interpK contains the interpolated value of g_k for
+% pixel (i,j) of the original image.
+interp0 = right;
+interp1 = (1-interpOff)*((1-interpOff) .* I + interpOff .* right) + interpOff *((1-interpOff) .* above + interpOff .* aboveRight);
+interp2 = above;
+interp3 = (1-interpOff)*((1-interpOff) .* I + interpOff .* left ) + interpOff *((1-interpOff) .* above + interpOff .* aboveLeft);
+interp4 = left;
+interp5 = (1-interpOff)*((1-interpOff) .* I + interpOff .* left ) + interpOff *((1-interpOff) .* below + interpOff .* belowLeft);
+interp6 = below;
+interp7 = (1-interpOff)*((1-interpOff) .* I + interpOff .* right ) + interpOff *((1-interpOff) .* below + interpOff .* belowRight);
+
+interp0 = floor(interp0);
+interp1 = floor(interp1);
+interp2 = floor(interp2);
+interp3 = floor(interp3);
+interp4 = floor(interp4);
+interp5 = floor(interp5);
+interp6 = floor(interp6);
+interp7 = floor(interp7);
+%% 
+% Image s_k at (i,j) contains the bit for g_k at (i,j)
+s0 = syi(interp0 - I-threshold);
+s1 = syi(interp1 - I-threshold);
+s2 = syi(interp2 - I-threshold);
+s3 = syi(interp3 - I-threshold);
+s4 = syi(interp4 - I-threshold);
+s5 = syi(interp5 - I-threshold);
+s6 = syi(interp6 - I-threshold);
+s7 = syi(interp7 - I-threshold);
+%% 
+% I: central pixel
+% interpN: pixels around center
+% Compute the uniformity.
+U = abs(s0 - s7) + ...
+    abs(s1 - s0) + ...
+    abs(s2 - s1) + ...
+    abs(s3 - s2) + ...
+    abs(s4 - s3) + ...
+    abs(s5 - s4) + ...
+    abs(s6 - s5) + ...
+    abs(s7 - s6);
+%% 
+
+% Compute number of bits in each LBP.  For the uniform
+% patterns this is the correct pattern id.
+LBP81riu2 = s0 + s1 + s2 + s3 + s4 + s5 + s6 + s7;
+
+% If the pattern is not uniform, replace the bit count
+% with 9, to indicate a non-uniform pattern.
+LBP81riu2(U > 2) = 9;
+ % if LBP81riu2 < 5
+  %   LBP81riu2(U > 2) = 9;
+ % else
+    % LBP81riu2(U > 2) = 10;
+% end
+
+window_r = (w-1)/2;
+num = w^2;
+
+%maps computations
+% LBP
+
+ltp_map_pad = padarray(LBP81riu2,[window_r,window_r],'replicate');
+for j = 1:height
+    for i = 1:width
+        ltpmap_patch = ltp_map_pad(j:j+w-1,i:i+w-1);
+        temp = (ltpmap_patch >=6 & ltpmap_patch <= 9);
+        
+        LBPmap (j,i) =sum(temp(:))/num;
+    end
+
+end
+end
+
+
+%% 
+function suVal = s(x, threshold)
+suVal = (x > threshold);
+end
+function suVal = syi(x)
+suVal = (x > 0);
+end
+
+
+
